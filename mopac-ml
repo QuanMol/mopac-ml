@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 
-import sys
 import os
 import re
 import signal
+import sys
 import threading
-import numpy as np
 
+import numpy as np
 # Torch and TorchMD-NET
 import torch
-from torchmdnet.models.model import load_model
-
 # Dispersion correction
-from dftd3.interface import RationalDampingParam, DispersionModel
+from dftd3.interface import DispersionModel, RationalDampingParam
+from torchmdnet.models.model import load_model
 
 # TBD
 #!# Dispersion does not have gradient
@@ -23,15 +22,16 @@ from dftd3.interface import RationalDampingParam, DispersionModel
 device = torch.get_default_device()
 
 # Force torch to use CPU:
-#dev = "cpu"
-#device = torch.device(dev)
+# dev = "cpu"
+# device = torch.device(dev)
 
 # -------------------------------------------------------------------------------
 # Paths and files
 # -------------------------------------------------------------------------------
 
 install_path = os.path.dirname(os.path.abspath(__file__))
-model_file = os.path.join(install_path, "models", "PM6-ML_correction_seed8_best.ckpt")
+model_file = os.path.join(install_path, "models",
+                          "PM6-ML_correction_seed8_best.ckpt")
 mopac_exe = os.path.join(install_path, "mopac")
 
 # -------------------------------------------------------------------------------
@@ -44,6 +44,7 @@ BOHR2ANGSTROM = 0.529177210903
 # -------------------------------------------------------------------------------
 # Methods - initialization
 # -------------------------------------------------------------------------------
+
 
 def mopac_ml_terminate(msg):
     """
@@ -94,25 +95,29 @@ def check_input_file(fn):
                     )
             ln += 1
 
+
 def check_system_and_mopac(mopac_exe):
     """
     Check system, availability of MOPAC, etc
     """
     # Check if we're on Linux
-    if not sys.platform == "linux":
-        mopac_ml_terminate("MOPAC-ML can currently be used only on Linux")
+    # if not sys.platform == "linux":
+        # mopac_ml_terminate("MOPAC-ML can currently be used only on Linux")
     if not os.path.exists(mopac_exe):
-        mopac_ml_terminate("MOPAC executable not found in the MOPAC-ML installation directory.\nIt should be named 'mopac'")
+        mopac_ml_terminate(
+            "MOPAC executable not found in the MOPAC-ML installation directory.\nIt should be named 'mopac'")
     if not os.path.isfile(mopac_exe):
         mopac_ml_terminate("MOPAC executable ('mopac') is not a file")
     if not os.access(mopac_exe, os.X_OK):
         mopac_ml_terminate("MOPAC executable ('mopac') is not executable")
+
 
 def create_interface_pipes():
     """
     Create the named pipes used by the interface
     """
     os.system("mkfifo fifo_in.tmp  fifo_out.tmp")
+
 
 def clean_interface_pipes():
     """
@@ -123,6 +128,7 @@ def clean_interface_pipes():
 # -------------------------------------------------------------------------------
 # Methods - interface
 # -------------------------------------------------------------------------------
+
 
 def wait_for_input(pipe_in="fifo_out.tmp"):
     """
@@ -171,8 +177,10 @@ def write_output(energy, gradient=None, pipe_out="fifo_in.tmp"):
             print(g[0], " ", g[1], " ", g[2], file=f_out)
     f_out.close()
 
+
 def calculation():
-    el_to_z = {35: 1, 6: 3, 17: 7, 9: 9, 1: 10, 53: 12, 7: 17, 8: 21, 15: 23, 16: 26}
+    el_to_z = {35: 1, 6: 3, 17: 7, 9: 9, 1: 10,
+               53: 12, 7: 17, 8: 21, 15: 23, 16: 26}
     while True:
         skip = []
         elements, coords, do_grad = wait_for_input()
@@ -190,14 +198,14 @@ def calculation():
                 coords.pop(num)
             else:
                 elem_out.append(el_to_z[data])
-        
+
         elements = elem_out
 
         # Energy calculation
         ene, forces = energy_forces(skip, elements, coords, model)
 
         # ... and gradient
-        dftd3_grad = res.get("gradient") * HARTREE2KJMOL /BOHR2ANGSTROM
+        dftd3_grad = res.get("gradient") * HARTREE2KJMOL / BOHR2ANGSTROM
         if do_grad:
             # Multiply with -1 to get gradient from forces
             grad = (forces * -1.0 + dftd3_grad) / 4.184
@@ -230,11 +238,13 @@ def energy_forces(skip, elem, geom, model):
 
 # Remove the pipes on exit using a keyboard interrupt handler
 
+
 def sigint_handler(signal, frame):
     print()
     print("Interrupted, cleaning the files")
     clean_interface_pipes()
     sys.exit(0)
+
 
 signal.signal(signal.SIGINT, sigint_handler)
 
